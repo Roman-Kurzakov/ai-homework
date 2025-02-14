@@ -1,20 +1,15 @@
 from flask import Flask, request, jsonify
-import requests
-import base64
-import os
-from dotenv import load_dotenv
-from db import SessionLocal
-from db_models import User, Transaction, Pricing
 import logging
 from decimal import Decimal
+import requests
+import base64
+
+from src.db import async_session
+from src.models import User, Transaction, Pricing
 from telegram import Bot
+from src.config import SHOP_ID, SECRET_KEY, TELEGRAM_TOKEN
 
 logging.basicConfig(level=logging.INFO)
-load_dotenv()
-
-SHOP_ID = os.getenv("SHOP_ID")
-SECRET_KEY = os.getenv("U_KASSA_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -36,12 +31,13 @@ def check_payment_status(payment_id):
         logging.error("Ошибка при проверке статуса платежа: %s", response.text)
         return None
 
+
 def handle_successful_payment(user_id: int, tariff_name: str, amount_decimal: Decimal) -> None:
     """
     Вызывается при успешной оплате пользователем user_id тарифа tariff_name.
     Например: '10 задач', '50 задач', '100 задач'.
     """
-    with SessionLocal() as session:
+    with async_session() as session:
         user = session.query(User).filter_by(id=user_id).first()
         pricing = session.query(Pricing).filter_by(name=tariff_name).first()
 
@@ -58,7 +54,7 @@ def handle_successful_payment(user_id: int, tariff_name: str, amount_decimal: De
         user.remaining_tasks += pricing.task_limit
         user.subscription_type = "package"
         user.solved_tasks_count = current_count
-        
+
         logging.info(
             f"Пользователь {user_id} получил +{pricing.task_limit} заданий (тариф: {tariff_name})."
         )
@@ -80,6 +76,8 @@ def handle_successful_payment(user_id: int, tariff_name: str, amount_decimal: De
     bot.send_message(chat_id=user_id, text=message_text)
     logging.info(f"Баланс пользователя {user_id} обновлен и уведомление отправлено.")
 
+
+# https://124.15.14.1.:80/payment/notification
 @app.route('/payment/notification', methods=['POST'])
 def payment_notification():
     data = request.json

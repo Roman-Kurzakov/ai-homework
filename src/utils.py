@@ -1,5 +1,3 @@
-
-
 import re
 import html
 import logging
@@ -13,11 +11,13 @@ from dotenv import load_dotenv
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
 def markdown_to_html(text):
     logging.debug("Исходный текст: %s", text)
 
     # Шаг 1: Заменяем блоки кода на уникальные маркеры
     code_blocks = {}
+
     def replace_code_block(match):
         code_content = match.group(1)
         placeholder = f"«CODE_BLOCK_{len(code_blocks)}»"
@@ -30,6 +30,7 @@ def markdown_to_html(text):
 
     # Шаг 2: Заменяем инлайн-код на уникальные маркеры
     inline_codes = {}
+
     def replace_inline_code(match):
         code_content = match.group(1)
         placeholder = f"«INLINE_CODE_{len(inline_codes)}»"
@@ -70,16 +71,13 @@ def markdown_to_html(text):
     def restore_inline_code(match):
         placeholder = match.group(0)
         code_content = inline_codes.get(placeholder, "")
-        
-        
+
         # Шаг 1: Удаление \text{...} => ...
         code_content = re.sub(r'\\text\{(.*?)\}', r'\1', code_content)
         # Шаг 2: Обработка \frac{...}{...} => .../...
         #code_content = re.sub(r'\\frac\{(.*?)\}\{(.*?)\}', r'\1/\2', code_content)
         code_content = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'\1 / \2', code_content)
-        
 
-        
         # Шаг 3: Замена LaTeX-команд на соответствующие символы
         replacements = {
             # Операторы и стрелки
@@ -97,7 +95,7 @@ def markdown_to_html(text):
             r'\\longleftrightarrow': '⟷',
             r'\\uparrow': '↑',
             r'\\downarrow': '↓',
-        
+
             # Математические символы
             r'\\pm': '±',
             r'\\neq': '≠',
@@ -115,7 +113,7 @@ def markdown_to_html(text):
             r'\\to': '→',
             r'\\d': 'd',
             r'\\partial': '∂',
-        
+
             # Греческие буквы
             r'\\Delta': 'Δ',
             r'\\delta': 'δ',
@@ -150,7 +148,7 @@ def markdown_to_html(text):
             r'\\mu': 'μ',
             r'\\Mu': 'Μ',
             r'\\chi': 'χ',
-        
+
             # Скобки
             r'\\langle': '⟨',
             r'\\rangle': '⟩',
@@ -158,14 +156,14 @@ def markdown_to_html(text):
             r'\\rceil': '⌉',
             r'\\lfloor': '⌊',
             r'\\rfloor': '⌋',
-        
+
             # Индексы и степени
             r'\^': '^',
             r'\_': '_',
             r'\\lim_{': 'lim_',
             r'\\int_{': '∫_',
             r'\\sum_{': '∑_',
-        
+
             # Прочие математические символы
             r'\\propto': '∝',
             r'\\subset': '⊂',
@@ -179,7 +177,7 @@ def markdown_to_html(text):
             r'\\forall': '∀',
             r'\\exists': '∃',
             r'\\nabla': '∇',
-        
+
             # Дополнительные
             r'\\angle': '∠',
             r'\\perp': '⊥',
@@ -187,27 +185,27 @@ def markdown_to_html(text):
             r'\\,': ' ',
             r'###': ' '
         }
-        
+
         for pattern, replacement in replacements.items():
             code_content = re.sub(pattern, replacement, code_content)
-        
+
         # Шаг 4: Обработка верхних индексов
         def replace_superscripts(content):
             superscript_map = str.maketrans('0123456789+-=()n', '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ')
             return content.translate(superscript_map)
-        
+
         code_content = re.sub(r'\^(\{([^{}]+?)\}|(\S))', lambda m: replace_superscripts(m.group(2) or m.group(3)), code_content)
-        
+
         # Шаг 5: Обработка нижних индексов
         def replace_subscripts(content):
             subscript_map = str.maketrans('0123456789+-=()aehklmnoprstuvx', '₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕₖₗₘₙₒₚᵣₛₜᵤᵥₓ')
             return content.translate(subscript_map)
-        
+
         code_content = re.sub(r'_(\{([^{}]+?)\}|(\S))', lambda m: replace_subscripts(m.group(2) or m.group(3)), code_content)
-        
+
         # Шаг 6: Экранирование HTML-сущностей
         code_content = html.escape(code_content)
-        
+
         logging.debug("Восстановленный инлайн-код: %s", code_content)
         return f'<code>{code_content}</code>'
 
@@ -233,6 +231,7 @@ load_dotenv()
 # Данные ЮKassa
 SHOP_ID = os.getenv("SHOP_ID")
 SECRET_KEY = os.getenv("U_KASSA_KEY")
+
 
 # Функция для создания платёжной ссылки
 def create_payment(amount, description, user_id, tariff_name):
