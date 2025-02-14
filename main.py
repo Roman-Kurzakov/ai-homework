@@ -12,12 +12,12 @@ from telegram.ext import (
     ContextTypes, CallbackQueryHandler, ConversationHandler
 )
 from telegram.constants import ParseMode
-from db import SessionLocal
+from src.db import async_session
 from db_models import User, UserThread, Feedback
 from openai import OpenAI
 from imgurpython import ImgurClient
 import tempfile
-from utils import markdown_to_html, create_payment
+from src.utils import markdown_to_html, create_payment
 
 
 logging.basicConfig(
@@ -75,7 +75,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args  # Получаем аргументы команды /start
     referred_by_id = int(args[0]) if args and args[0].isdigit() else None
 
-    with SessionLocal() as session:
+    with async_session() as session:
         user = session.query(User).filter_by(id=user_id).first()
 
         if not user:
@@ -125,7 +125,7 @@ async def subject_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message or update.callback_query.message
     logging.info("Получена команда /subject от пользователя %s", user_id)
 
-    with SessionLocal() as session:
+    with async_session() as session:
         user = session.query(User).filter_by(id=user_id).first()
 
     if user is None or user.class_level is None:
@@ -166,7 +166,7 @@ async def subject_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
         selected_subject = data.replace('subject_', '')
         context.user_data['selected_subject'] = selected_subject
 
-        with SessionLocal() as session:
+        with async_session() as session:
             # Проверяем, есть ли уже тред (user_id, subject) в БД
             existing_thread = session.query(UserThread).filter_by(
                 user_id=user_id, service_name=selected_subject
@@ -197,7 +197,8 @@ async def subject_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         logging.warning("Неизвестный выбор: %s", data)
         await query.edit_message_text("Неизвестный выбор.")
-        
+
+
 async def klass_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logging.info("Получена команда /klass от пользователя %s", user_id)
@@ -210,6 +211,7 @@ async def klass_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("В каком классе вы/ваш ребёнок учится?", reply_markup=reply_markup)
 
+
 async def klass_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -221,7 +223,7 @@ async def klass_button_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if data.startswith('class_'):
         class_level = data.split('_')[1]
 
-        with SessionLocal() as session:
+        with async_session() as session:
             user = session.query(User).filter_by(id=user_id).first()
             if user:
                 user.class_level = class_level
@@ -237,15 +239,15 @@ async def klass_button_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logging.warning("Неизвестный выбор класса: %s", data)
         await query.edit_message_text("Неизвестный выбор.")
 
+
 async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    
     if update.message.message_id == context.user_data.get('last_processed_message_id'):
         return
-    
+
     user_id = update.effective_user.id
     message = update.message
 
-    with SessionLocal() as session:
+    with async_session() as session:
         user = session.query(User).filter_by(id=user_id).first()
         if not user:
             await message.reply_text("Не удалось получить данные пользователя.")
@@ -266,12 +268,12 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await message.reply_text("Не удалось найти ассистента для этого предмета.")
         return
 
-    with SessionLocal() as session:
+    with async_session() as session:
         user_thread = session.query(UserThread).filter_by(
             user_id=user_id,
             service_name=selected_subject
         ).first()
-    
+
         if not user_thread:
         # На случай, если что-то пошло не так, и тред не был создан в service_selected
         # Можно либо создать новый здесь, либо сообщить, что нужно заново выбрать услугу
@@ -366,7 +368,7 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             # Логирование всех сообщений в треде
             for msg in messages.data:
                 logging.info(f"Message ID: {msg.id}, Role: {msg.role}, Content: {msg.content}")
-            
+
             # Фильтруем сообщения, оставляя только те, которые от ассистента
             assistant_messages = [msg for msg in messages.data if msg.role == 'assistant']
             if assistant_messages:
@@ -394,7 +396,7 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             await message.reply_text(f"Статус выполнения: {run.status}")
 
         # Уменьшаем баланс пользователя только после успешного выполнения
-        with SessionLocal() as session:
+        with async_session() as session:
             user = session.query(User).filter_by(id=user_id).first()
             user.solved_tasks_count += 1
             user.remaining_tasks -= 1
@@ -404,11 +406,12 @@ async def handle_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         logging.error("Ошибка при обработке запроса от пользователя %s: %s", user_id, e)
         await message.reply_text("Произошла ошибка при обработке вашего запроса.")
 
+
 async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logging.info("Получена команда /balance от пользователя %s", user_id)
 
-    with SessionLocal() as session:
+    with async_session() as session:
         user = session.query(User).filter_by(id=user_id).first()
         if not user:
             user = User(id=user_id, remaining_tasks=0, subscription_type="free")
@@ -416,6 +419,7 @@ async def balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             session.commit()
         balance = user.remaining_tasks
         await update.message.reply_text(f"У вас осталось {balance} заданий.")
+
 
 async def buy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -452,6 +456,7 @@ async def buy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Выберите тариф для оплаты:", reply_markup=reply_markup)
 
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logging.info("Получена команда /help от пользователя %s", user_id)
@@ -470,7 +475,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     bot_username = context.bot.username  # Получаем имя бота из контекста
-    with SessionLocal() as session:
+    with async_session() as session:
         user = session.query(User).filter_by(id=user_id).first()
         if user:
             referral_link = f"https://t.me/{bot_username}?start={user.id}"
@@ -481,17 +486,19 @@ async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("Не удалось найти ваши данные. Пожалуйста, используйте команду /start.")
 
+
 async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     logging.info("Получена команда /feedback от пользователя %s", user_id)
     await update.message.reply_text("Введите ваш отзыв как обычное сообщение")
     return FEEDBACK
 
+
 async def handle_feedback_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     feedback_text = update.message.text
 
-    with SessionLocal() as session:
+    with async_session() as session:
         user = session.query(User).filter_by(id=user_id).first()
         if user:
             feedback = Feedback(user_id=user_id, feedback_text=feedback_text)
@@ -503,6 +510,7 @@ async def handle_feedback_message(update: Update, context: ContextTypes.DEFAULT_
     context.user_data['last_processed_message_id'] = update.message.message_id
     return ConversationHandler.END
 
+
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
@@ -511,6 +519,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Пожалуйста, отправьте текст и/или фото для рассылки.")
     return BROADCAST_COLLECT
+
 
 async def collect_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -525,13 +534,14 @@ async def collect_broadcast_message(update: Update, context: ContextTypes.DEFAUL
     await update.message.reply_text("Рассылка завершена.")
     return ConversationHandler.END
 
+
 async def send_broadcast(context: ContextTypes.DEFAULT_TYPE):
     message = context.user_data.get('broadcast_message')
     if not message:
         return
 
     # Получаем список всех пользователей из базы данных
-    with SessionLocal() as session:
+    with async_session() as session:
         users = session.query(User).all()
 
     # тестовая отправка только себе
@@ -605,7 +615,7 @@ def main():
         states={FEEDBACK: [MessageHandler(filters.ALL, handle_feedback_message)]},
         fallbacks=[]
     ), group=0)
-    
+
         # Обработчик диалога для команды /broadcast
     application.add_handler(ConversationHandler(
         entry_points=[CommandHandler('broadcast', broadcast_command)],
