@@ -1,39 +1,79 @@
-version: '3.11'
-
 services:
-  app:
+  bot:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: bot
-    image: bot
+      dockerfile: Dockerfile.bot
+    command: python main_assistants.py
     environment:
-      - POSTGRES_HOST=${DB_HOST}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASS}
-      - POSTGRES_DB=${DB_NAME}
-      - RABBITMQ_DEFAULT_USER=${RABBIT_LOGIN}
-      - RABBITMQ_DEFAULT_PASS=${RABBIT_PASS}
-      - RABBIT_HOST=${RABBIT_HOST}
-      - RABBIT_PORT=${RABBIT_PORT}
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SHOP_ID: ${SHOP_ID}
+      RABBIT_HOST: rabbitmq
+      RABBIT_LOGIN: ${RABBIT_LOGIN}
+      RABBIT_PASS: ${RABBIT_PASS}
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
     restart: always
+    depends_on:
+      - postgres
+      - rabbitmq
 
-  db:
-    image: postgres
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    command: python consumer.py
     environment:
-      - POSTGRES_PASSWORD=${DB_PASS}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_DB=${DB_NAME}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      RABBIT_HOST: rabbitmq
+      RABBIT_LOGIN: ${RABBIT_LOGIN}
+      RABBIT_PASS: ${RABBIT_PASS}
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+    restart: always
+    depends_on:
+      - rabbitmq
+      - postgres
+
+  payment_server:
+    build:
+      context: .
+      dockerfile: Dockerfile.payment
     ports:
-      - '5432:5432'
-  
+      - "8000:8000"
+    environment:
+      U_KASSA_KEY: ${U_KASSA_KEY}
+      SHOP_ID: ${SHOP_ID}
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+    restart: always
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
   rabbitmq:
-    image: rabbitmq:3-management-alpine
-    hostname: rabbitmq
-    container_name: rabbitmq
+    image: rabbitmq:3-management
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_LOGIN}
       RABBITMQ_DEFAULT_PASS: ${RABBIT_PASS}
+
+volumes:
+  db_data:

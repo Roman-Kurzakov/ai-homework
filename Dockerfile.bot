@@ -2,13 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY . /app
-
-# Устанавливаем Python-зависимости
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r ./requirements.txt
 
+COPY . .
 # RUN apt-get update && \
 #     apt-get install -y --no-install-recommends wireguard && \
 #     rm -rf /var/lib/apt/lists/*
 
-CMD ["python3", "main_assistants.py", "&&", "python3", "consumer.py"]
+CMD ["python3", "main_assistants.py"]

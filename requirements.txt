@@ -16,9 +16,9 @@ click==8.1.8
 decorator==5.1.1
 distro==1.9.0
 exceptiongroup==1.2.2
-Flask==3.1.0
 frozenlist==1.5.0
 greenlet==3.1.1
+gunicorn>=21.2.0
 h11==0.14.0
 httpcore==1.0.7
 httpx==0.28.1
@@ -46,3 +46,5 @@ typing_extensions==4.12.2
 urllib3==2.3.0
 Werkzeug==3.1.3
 yarl==1.18.3
+quart>=0.19.4,<0.20.0
+uvicorn>=0.27.0

@@ -25,10 +25,7 @@ logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-client = AsyncOpenAI(
-    api_key=OPENAI_API_KEY,
-    base_url="https://api.proxyapi.ru/openai/v1"
-)
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 
 class EventMessage:
