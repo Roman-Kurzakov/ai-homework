@@ -19,6 +19,8 @@ services:
     depends_on:
       - postgres
       - rabbitmq
+      volumes:
+      - ./images:/app/images
 
   consumer:
     build:
@@ -38,6 +40,8 @@ services:
     depends_on:
       - rabbitmq
       - postgres
+    volumes:
+      - ./images:/app/images
 
   payment_server:
     build:
