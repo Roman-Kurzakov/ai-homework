@@ -19,7 +19,7 @@ services:
     depends_on:
       - postgres
       - rabbitmq
-      volumes:
+    volumes:
       - ./images:/app/images
 
   consumer:
